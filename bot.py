@@ -67,8 +67,8 @@ TEXTS = {
 def language_keyboard():
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton(" Русский", callback_data="lang_ru"),
-            InlineKeyboardButton(" English", callback_data="lang_en"),
+            InlineKeyboardButton("Русский", callback_data="lang_ru"),
+            InlineKeyboardButton("English", callback_data="lang_en"),
         ]
     ])
 
@@ -165,12 +165,10 @@ async def receive_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Уведомление в чат администраторов
     username = f"@{user.username}" if user.username else f"tg://user?id={user.id}"
     name = user.full_name or "—"
-    flag = "🇷🇺" if lang == "ru" else "🇬🇧"
-
     admin_msg = (
         f"🔔 <b>Новая заявка!</b>\n\n"
         f"👤 {name} ({username})\n"
-        f"{flag} Язык: {'RU' if lang == 'ru' else 'EN'}\n"
+        f"🌐 Язык: {'RU' if lang == 'ru' else 'EN'}\n"
         f"🏷 Роль: {role}\n\n"
         f"💬 Запрос:\n{text}"
     )
