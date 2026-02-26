@@ -8,8 +8,8 @@ from telegram.ext import (
 # ─────────────────────────────────────────
 # НАСТРОЙКИ — заполни перед запуском
 # ─────────────────────────────────────────
-BOT_TOKEN = "8587712492:AAFFHgDzfN6LV-BIQngaF9xWTstpNnVwHoI"          # токен от @BotFather
-ADMIN_CHAT_ID = "-1003381583470"      # ID группы администраторов
+BOT_TOKEN = "8587712492:AAFFHgDzfN6LV-BIQngaF9xWTstpNnVwHoI"
+ADMIN_CHAT_ID = "-1003381583470"
 # ─────────────────────────────────────────
 
 logging.basicConfig(level=logging.INFO)
@@ -38,6 +38,7 @@ TEXTS = {
             "✅ Спасибо! Передал вашу заявку нашему Affiliate Manager. "
             "Он напишет вам в ближайшее время."
         ),
+        "back": "◀️ Назад",
     },
     "en": {
         "step2": (
@@ -56,23 +57,29 @@ TEXTS = {
             "✅ Thank you! Your request has been forwarded to our "
             "Affiliate Manager. They'll be in touch shortly."
         ),
+        "back": "◀️ Back",
     },
 }
+
+# ──────────────────────────────────────────────
+# ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ — экран выбора языка
+# ──────────────────────────────────────────────
+def language_keyboard():
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"),
+            InlineKeyboardButton("🇬🇧 English", callback_data="lang_en"),
+        ]
+    ])
 
 # ──────────────────────────────────────────────
 # ШАГИ
 # ──────────────────────────────────────────────
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [
-            InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"),
-            InlineKeyboardButton("🇬🇧 English", callback_data="lang_en"),
-        ]
-    ]
     await update.message.reply_text(
         "👋 Здравствуйте! / Hello!\n"
         "Выберите пожалуйста язык / Please select a language:",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        reply_markup=language_keyboard(),
     )
     return LANGUAGE
 
@@ -81,7 +88,7 @@ async def choose_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    lang = query.data.split("_")[1]          # "ru" или "en"
+    lang = query.data.split("_")[1]   # "ru" или "en"
     context.user_data["lang"] = lang
     t = TEXTS[lang]
 
@@ -89,8 +96,24 @@ async def choose_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton(label, callback_data=f"role_{value}")]
         for label, value in t["roles"]
     ]
+    # Кнопка «Назад» → вернёт на выбор языка
+    keyboard.append([InlineKeyboardButton(t["back"], callback_data="back_to_lang")])
+
     await query.edit_message_text(t["step2"], reply_markup=InlineKeyboardMarkup(keyboard))
     return ROLE
+
+
+async def back_to_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Нажата кнопка «Назад» на экране выбора роли → возвращаемся к выбору языка."""
+    query = update.callback_query
+    await query.answer()
+
+    await query.edit_message_text(
+        "👋 Здравствуйте! / Hello!\n"
+        "Выберите пожалуйста язык / Please select a language:",
+        reply_markup=language_keyboard(),
+    )
+    return LANGUAGE
 
 
 async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -100,9 +123,34 @@ async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
     role = query.data.replace("role_", "")
     context.user_data["role"] = role
     lang = context.user_data["lang"]
+    t = TEXTS[lang]
 
-    await query.edit_message_text(TEXTS[lang]["ask_request"])
+    # Кнопка «Назад» → вернёт на выбор роли
+    keyboard = [[InlineKeyboardButton(t["back"], callback_data="back_to_role")]]
+
+    await query.edit_message_text(
+        t["ask_request"],
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
     return REQUEST
+
+
+async def back_to_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Нажата кнопка «Назад» на экране ввода запроса → возвращаемся к выбору роли."""
+    query = update.callback_query
+    await query.answer()
+
+    lang = context.user_data.get("lang", "ru")
+    t = TEXTS[lang]
+
+    keyboard = [
+        [InlineKeyboardButton(label, callback_data=f"role_{value}")]
+        for label, value in t["roles"]
+    ]
+    keyboard.append([InlineKeyboardButton(t["back"], callback_data="back_to_lang")])
+
+    await query.edit_message_text(t["step2"], reply_markup=InlineKeyboardMarkup(keyboard))
+    return ROLE
 
 
 async def receive_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -149,9 +197,17 @@ def main():
     conv = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
-            LANGUAGE: [CallbackQueryHandler(choose_language, pattern="^lang_")],
-            ROLE:     [CallbackQueryHandler(choose_role,     pattern="^role_")],
-            REQUEST:  [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_request)],
+            LANGUAGE: [
+                CallbackQueryHandler(choose_language, pattern="^lang_"),
+            ],
+            ROLE: [
+                CallbackQueryHandler(choose_role,       pattern="^role_"),
+                CallbackQueryHandler(back_to_language,  pattern="^back_to_lang$"),
+            ],
+            REQUEST: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, receive_request),
+                CallbackQueryHandler(back_to_role, pattern="^back_to_role$"),
+            ],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
